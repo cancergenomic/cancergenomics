@@ -1,0 +1,334 @@
+# Schizophrenia with Gaussian Processes Classification 
+# Importing the preliminary packages 
+import numpy as np 
+import pandas as pd 
+import matplotlib.pyplot as plt
+from sklearn.decomposition import PCA
+
+# Importing the Training Datasets 
+FNC_train = pd.read_csv("train_FNC.csv")
+SBM_train = pd.read_csv("train_SBM.csv")
+Labels_train = pd.read_csv("train_labels.csv")
+
+trainIDs = FNC_train['Id']
+trainFNC = FNC_train.drop(['Id'],axis=1)
+trainSBM = SBM_train.drop(['Id'],axis=1)
+
+# Datasets for training 
+trainData = pd.concat([trainFNC,trainSBM],axis=1)
+trainLabels = Labels_train.drop(['Id'],axis=1)
+
+trainData.head()
+
+# Importing the Test Dataset
+FNC_test = pd.read_csv("test_FNC.csv")
+SBM_test = pd.read_csv("test_SBM.csv")
+
+testIDs = FNC_test['Id']
+
+testFNC = FNC_test.drop(['Id'],axis=1)
+testSBM = SBM_test.drop(['Id'],axis=1)
+
+testData = pd.concat([testFNC,testSBM],axis=1)
+
+testData.head()
+#############################################################################################################
+#############################################################################################################
+                                                  # Support Vector Classifier 
+#############################################################################################################
+
+
+from sklearn.model_selection import train_test_split 
+Xtrain , Xtest,ytrain,ytest = train_test_split(trainData,trainLabels,test_size = 0.25,random_state = 0)
+
+from sklearn.preprocessing import StandardScaler 
+sc = StandardScaler()
+Xtrain = sc.fit_transform(Xtrain)
+Xtest = sc.transform(Xtest)
+
+from sklearn.svm import SVC
+classifier_svc = SVC(kernel='rbf',random_state=0)
+model_toy_svc = classifier_svc.fit(Xtrain,ytrain)
+ypred = model_toy_svc.predict(Xtest)
+
+from sklearn.metrics import confusion_matrix
+cm = confusion_matrix(ytest,ypred)
+
+gamma = np.logspace(-10,3,num=20)
+C = np.logspace(-10,2,num=20)
+#parameters = dict(gamma=gamma,C=C)
+tuned_parameters = [{'kernel': ['rbf'], 'gamma': [1e-3, 1e-4],
+                     'C':np.logspace(-5,2,num=10)},
+                    {'kernel': ['linear'], 'C': C}]
+grid_search_svc_toy= GridSearchCV(estimator=classifier,param_grid=tuned_parameters,cv=10,
+                           scoring = "accuracy",n_jobs=-1)
+
+grid_search_svc = grid_search_svc_toy.fit(Xtrain,ytrain)
+best_parameters_svc = grid_search_svc.best_params_
+best_accuracies = grid_search_svc.best_score_
+
+C_tuned = 2.782559
+gamma_tuned = 0.001
+
+model_svc_toy_tuned = svm.SVC(C=C_tuned,gamma=gamma_tuned,
+                              kernel='rbf',probability = True)
+model_svc_tuned = model_svc_toy_tuned.fit(Xtrain,ytrain)
+
+ypred_tuned = model_svc_tuned.predict(Xtest)
+cm_tuned = confusion_matrix(ytest,ypred_tuned)
+
+from sklearn.model_selection import validation_curve 
+from sklearn.model_selection import learning_curve
+train_sizes, train_scores, valid_scores = learning_curve(
+...     SVC(kernel='rbf'), Xtrain, ytrain, train_sizes=(0,50), cv=5)
+
+# To do the KFold Cross Validation 
+K_
+from sklearn.model_selection import KFold 
+from sklearn.model_selection import cross_val_score 
+accuracies = cross_val_score(estimator = model_svc_tuned ,
+                             X=Xtrain,y=ytrain,cv=10)
+accuracies.mean()
+accuracies.std()
+
+model_svc_tuned.predict_proba(testData)
+
+
+# Reducing the dimensionality 
+#from sklearn.decomposition import PCA
+#pca = PCA(random_state=0)
+#pca.fit(trainData)
+#plt.plot(np.cumsum(pca.explained_variance_ratio_))
+#plt.xlabel('Number of Components')
+#plt.ylabel('Cumulative Explained Variance')
+
+# PCA Analysis 
+#pca = PCA(n_components = 70,svd_solver="randomized",whiten=True)
+#trainData_pca = pca.fit_transform(trainData)
+#testData_pca = pca.transform(testData)
+
+# DO the Grid Search for the best estimators 
+
+from sklearn import svm 
+from sklearn.model_selection import GridSearchCV
+classifier = svm.SVC(kernel='rbf')
+gamma = np.logspace(-10,3,num=20)
+C = np.logspace(-10,2,num=20)
+parameters = dict(gamma=gamma,C=C)
+#tuned_parameters = [{'kernel': ['rbf'], 'gamma': [1e-3, 1e-4],
+                     'C':np.logspace(-5,2,num=10)},
+                    {'kernel': ['linear'], 'C': [1, 10, 100, 1000]}]
+grid_search = GridSearchCV(estimator=classifier,param_grid=parameters,cv=10,
+                           scoring = "accuracy",n_jobs=-1)
+grid_search = grid_search.fit(trainData,trainLabels)
+best_parameters_svc = grid_search.best_params_
+best_accuracies = grid_search.best_score_
+
+
+C_value = 1.2742
+gamma_value = 0.0162377
+model_svc = svm.SVC(C=C_value,gamma=gamma_value,kernel='rbf',probability = True)
+model_svc.fit(trainData,trainLabels)
+
+# Prediction Model 
+predictions = model_svc.predict_proba(testData)[:,1]
+predictions.shape
+
+submission = {'ID' : testIDs, 
+              'probability' : predictions}
+submission=pd.DataFrame(submission)
+##############################################################################################################
+# Gaussian Process Classification 
+##############################################################################################################
+
+# Installing the Gaussian Process Packages 
+from sklearn.metrics import accuracy_score
+from sklearn.metrics import log_loss
+from sklearn.gaussian_process import GaussianProcessClassifier
+from sklearn.gaussian_process.kernels import RBF
+
+# Fixed Gaussian Process Classification
+GP_fix_param =GaussianProcessClassifier(kernel=1.0*RBF(length_scale=0.1),
+                                            optimizer = None)
+
+GP_param =GaussianProcessClassifier(kernel=1.0*RBF(length_scale=0.1))
+                                            
+# Fit the Gaussian Model without the optimization of the hyperparameters  
+GP_fix_param_fit = GP_fix_param.fit(trainData,trainLabels)
+
+GP_param_fit = GP_param.fit(trainData,trainLabels)
+# Obtain the accuracy of the GP model on the training set 
+GP_fix_accuracy = GP_fix_param_fit.score(trainData,trainLabels)
+
+GP_accuracy = GP_param_fit.score(trainData,trainLabels)
+
+GP_fix_param_prob = GP_fix_param.predict_proba(testData)[:,1]
+
+GP_param_prob = GP_param.predict_proba(testData)[:,1]
+
+
+GP_Crazy = GaussianProcessClassifier(kernel = (RationalQuadratic(length_scale=1.0, alpha=0.1))+(RBF(length_scale=0.1)))
+
+GP_Crazy_fit = GP_Crazy.fit(trainData,trainLabels)
+GP_Crazy_fit_accuracy = GP_Crazy_fit.score
+GP_Crazy_pred = GP_Crazy_fit.predict_proba(testData)[:,1]
+
+##############################################################################################################
+# Matern Product 
+
+from sklearn.gaussian_process.kernels import (RBF,RationalQuadratic,ExpSineSquared,
+                                              DotProduct,ConstantKernel,Matern)
+#         
+
+kernels = [1.0 * RBF(length_scale=1.0, length_scale_bounds=(1e-1, 10.0)),
+           1.0 * RationalQuadratic(length_scale=1.0, alpha=0.1),
+           1.0 * ExpSineSquared(length_scale=1.0, periodicity=3.0,
+                                length_scale_bounds=(0.1, 10.0),
+                                periodicity_bounds=(1.0, 10.0)),
+           ConstantKernel(0.1, (0.01, 10.0))
+               * (DotProduct(sigma_0=1.0, sigma_0_bounds=(0.1, 10.0)) ** 2),
+           1.0 * Matern(length_scale=1.0, length_scale_bounds=(1e-1, 10.0),
+                        nu=1.5)]
+
+matern_kernel =  Matern(length_scale=1.0, length_scale_bounds=(1e-1, 10.0),
+                        nu=1.5)
+
+rbf_kernel = RBF(length_scale=0.1)
+
+GP_Matern_RBF = GaussianProcessClassifier(kernel=(matern_kernel + rbf_kernel))
+
+Matern_fit = GP_Matern_RBF.fit(trainData,trainLabels)
+Matern_pred = Matern_fit.predict_proba(testData)[:,1]
+
+submission = {'ID' : testIDs,'probability' : Matern_pred}
+submission = pd.DataFrame(submission)
+submission.to_csv(outputFile, index = 0, float_format='%11.6f')
+# Log Marginal Likelihood 
+print("Log Marginal Likelihood (initial): %.3f"
+      % GP_fix_param.log_marginal_likelihood(GP_fix_param.kernel_.theta))
+
+LML_Fix = GP_fix_param.log_marginal_likelihood(GP_fix_param.kernel_.theta)
+LML = GP_param.log_marginal_likelihood(GP_param.kernel_.theta)
+
+# Accuracy of Prediction 
+#from random import sample 
+#Accuracy_Fix = accuracy_score(trainLabels, GP_fix_param.predict(testData.sample(86))
+from sklearn.model_selection import cross_val_score,KFold
+
+tuned_parameters = [{'kernel': ['rbf'], 'gamma': [1e-3, 1e-4],
+                     'C': [1, 10, 100, 1000]},
+                    {'kernel': ['linear'], 'C': [1, 10, 100, 1000]}]
+GridSearchCV(GaussianProcessClassifier(),trainData,testData,tuned_parameters ,cv=10,n_jobs=1)
+
+
+grid_search = GridSearchCV(estimator=classifier,param_grid=parameters,cv=10,
+                           scoring = "accuracy",n_jobs=-1)
+grid_search = grid_search.fit(trainData,trainLabels)
+# log_loss
+#Loss_entropy_fix = log_loss(trainData,GP_fix_param.predict_proba(testData)
+
+###############################################################################
+# Optimized Gaussian Process Classification 
+#GP_Opt = GaussianProcessClassifier(kernel=1.0*RBF(length_scale=1.0),
+                                   #optimizer='fmin_l_bfgs_b')
+#GP_Opt_fit = GP_Opt.fit(X_train,y_train)
+
+#print("Log Marginal Likelihood (Optimized): %.3f"
+      #% GP_Opt.log_marginal_likelihood(GP_Opt.kernel_.theta))
+
+
+#LML_Opt = GP_Opt.log_marginal_likelihood(GP_Opt.kernel_.theta)
+# Accuracy of Prediction 
+#Accuracy_Opt = accuracy_score(y_train, GP_Opt.predict(X_test.sample(86)))
+#Accuracy_Opt
+
+# Log_Loss 
+#Loss_Entropy_Opt = log_loss(y_train,GP_Opt.predict_proba(X_test.sample(86)))
+#Loss_Entropy_Opt
+###############################################################################
+# Kernels 
+from sklearn.gaussian_process.kernels import (RBF,RationalQuadratic,ExpSineSquared,
+                                              DotProduct,ConstantKernel,Matern)
+#         
+
+kernels = [1.0 * RBF(length_scale=1.0, length_scale_bounds=(1e-1, 10.0)),
+           1.0 * RationalQuadratic(length_scale=1.0, alpha=0.1),
+           1.0 * ExpSineSquared(length_scale=1.0, periodicity=3.0,
+                                length_scale_bounds=(0.1, 10.0),
+                                periodicity_bounds=(1.0, 10.0)),
+           ConstantKernel(0.1, (0.01, 10.0))
+               * (DotProduct(sigma_0=1.0, sigma_0_bounds=(0.1, 10.0)) ** 2),
+           1.0 * Matern(length_scale=1.0, length_scale_bounds=(1e-1, 10.0),
+                        nu=1.5)]
+           
+for kernel in kernels:
+    GPC = GaussianProcessClassifier()
+
+# Fit the Model 
+rng = np.random.RandomState(123)
+GPC.fit(trainData,trainLabels)
+
+#X_test_Frame = pd.DataFrame(X_test)
+#X_test_Frame_Squeezed = X_test.iloc[:86,:411]
+#GPC_Score = GPC.score(X_test_Frame_Squeezed,y_train)
+
+GPC.predict_proba(testData)
+
+###############################################################################
+# To create various classifier 
+from sklearn.linear_model import LogisticRegression
+from sklearn.svm import SVC
+Regularization_Parameter = 3
+classifiers = {
+        "L1 Logistic Regressor" : LogisticRegression(penalty="l1", C=Regularization_Parameter,
+                                                     solver = "saga",
+                                                     multi_class = "ovr",
+                                                     max_iter=30000),
+         "L2 Logistic Regressor" : LogisticRegression(penalty="l2",C=Regularization_Parameter,
+                                                      solver = "saga",
+                                                      multi_class="ovr",
+                                                      max_iter=30000),
+          "Linear Support Vector Clasifier":SVC(kernel="linear", C= Regularization_Parameter,
+                                                probability = True,random_state= 0),
+          " Gaussian Process Classifier":GaussianProcessClassifier(kernel=RBF(1.0)),
+        
+        }
+n_classifiers = len(classifiers)
+plt.figure(figsize=(3*2,n_classifiers *2))
+plt.subplots_adjust(bottom = 0.2,top=.95)
+
+XX = np.linspace(3,9,100)
+yy = np.linspace(1,5,100).T
+XX,yy = np.meshgrid(XX,yy)
+Xfull =np.c_[XX.ravel(),yy.ravel()] 
+
+for index,(name,classifier) in enumerate(classifiers.items()):
+    classifier.fit(trainData,trainLabels)
+    
+y_pred = classifier.predict(trainData)
+y_pred_pro = classifier.predict_proba(testData)
+
+
+
+# Visualization of the probabilities of the classifier 
+prob = classifier.predict_proba(testData)[:,1]
+n_classes = np.unique(y_pred).size
+
+for k in range(n_classes):
+        plt.subplot(n_classifiers, n_classes, index * n_classes + k + 1)
+        plt.title("Class %d" % k)
+        if k == 0:
+            plt.ylabel(name)
+        imshow_handle = plt.imshow(prob[:, k].reshape((100, 100)),
+                                   extent=(3, 9, 1, 5), origin='lower')
+        plt.xticks(())
+        plt.yticks(())
+        idx = (y_pred == k)
+        if idx.any():
+            plt.scatter(X[idx, 0], X[idx, 1], marker='o', c='w', edgecolor='k')
+
+ax = plt.axes([0.15, 0.04, 0.7, 0.05])
+plt.title("Probability")
+#plt.colorbar(imshow_handle, cax=ax, orientation='horizontal')
+
+plt.show()
